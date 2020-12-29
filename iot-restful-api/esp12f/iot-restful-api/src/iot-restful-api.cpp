@@ -1,41 +1,62 @@
-#include <ArduinoJson.h>
-#include <DNSServer.h>
-#include <ESP8266HTTPClient.h>
-#include <ESP8266WebServer.h>
-#include <ESP8266WiFi.h>
-#include <WiFiManager.h>
+#include <memory>
 
+#include "ArduinoJson.h"
+#include "DNSServer.h"
+#include "ESP8266HTTPClient.h"
+#include "ESP8266WebServer.h"
+#include "ESP8266WiFi.h"
+#include "WiFiManager.h"
+
+// Own header files.
 #include <Api.h>
 
 // This is tested on an ESP12-F board. And the LED is a different GPIO.
 const uint8_t ESP21F_LED = 2;
 
-void config_mode_callback(WiFiManager *wifi_manager) {
+void configuration_mode_callback(WiFiManager* wifi_manager) {
   Serial.println("Entered configuration mode");
   Serial.println(WiFi.softAPIP());
   Serial.print("Created configuration portal AP ");
   Serial.println(wifi_manager->getConfigPortalSSID());
 }
 
-void ping() { Api::Routes::ping(); }
+void Ping(WiFiClient* wifi_client) { Api::Routes::Ping(wifi_client)->end(); }
 
-void send_message() {
+void SendMessage(WiFiClient* wifi_client) {
+  // Create message to send.
   Api::Request::Message message;
   message.info = 12;
   strncpy(message.key, "some_key\0", 9);
 
-  Api::Routes::post_message(message);
+  // Send message.
+  auto http_client = Api::Routes::PostMessage(wifi_client, message);
+
+  // Handle reponse.
+  Api::Response::Message response;
+  Api::Response::Bind(&http_client->getStream(), &response);
+  Api::Response::Print(response);
+
+  http_client->end();
 }
 
-void send_secure_message() {
+void SendSecureMessage(WiFiClient* wifi_client) {
+  // Create message to send.
   Api::Request::Message message;
   message.info = 42;
   strncpy(message.key, "secure_key\0", 11);
 
-  Api::Routes::post_secure_message(message);
+  // Send message.
+  auto http_client = Api::Routes::PostSecureMessage(wifi_client, message);
+
+  // Handle reponse.
+  Api::Response::Message response;
+  Api::Response::Bind(&http_client->getStream(), &response);
+  Api::Response::Print(response);
+
+  http_client->end();
 }
 
-void blink(const int times) {
+void Blink(const int times) {
   for (int i = 0; i < times; i++) {
     digitalWrite(ESP21F_LED, LOW);
     delay(200);
@@ -53,10 +74,17 @@ void setup() {
 
   // Local initialization. Once its business is done, there is no need to keep
   // it around.
-  WiFiManager wifiManager;
+  WiFiManager wifi_manager;
 
   // When connecting to WiFi fails open the configuration portal.
-  wifiManager.setAPCallback(config_mode_callback);
+  wifi_manager.setAPCallback(configuration_mode_callback);
+
+  if (!wifi_manager.autoConnect()) {
+    Serial.println("failed to connect and hit timeout");
+    // reset and try again, or maybe put it to deep sleep
+    ESP.reset();
+    delay(1000);
+  }
 
   // TODO(patwie): Add logic for deep sleep and fail-safe re-connection. In
   // some cases we want to prevent the configuration portal to pop up if the
@@ -64,16 +92,25 @@ void setup() {
 }
 
 void loop() {
+  // Connect to network.
+  WiFiClient wifi_client;
+  if (!Api::IsConnected(&wifi_client)) {
+    wifi_client.stop();
+    delay(5000);
+    return;
+  }
 
-  ping();
-  blink(2);
+  Ping(&wifi_client);
+  Blink(2);
   delay(2000);
 
-  send_message();
-  blink(3);
+  SendMessage(&wifi_client);
+  Blink(3);
   delay(2000);
 
-  send_secure_message();
-  blink(3);
+  SendSecureMessage(&wifi_client);
+  Blink(3);
   delay(2000);
+
+  wifi_client.stop();
 }
