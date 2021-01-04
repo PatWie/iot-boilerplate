@@ -1,4 +1,7 @@
+// Copyright 2020, https://github.com/PatWie/iot-boilerplate
 #include "Api.h"
+
+#include <utility>
 
 #include "ArduinoJson.h"
 #include "ESP8266HTTPClient.h"

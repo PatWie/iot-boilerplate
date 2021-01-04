@@ -1,3 +1,4 @@
+// Copyright 2020, https://github.com/PatWie/iot-boilerplate
 #include <memory>
 
 #include "ArduinoJson.h"

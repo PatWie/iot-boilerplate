@@ -1,5 +1,6 @@
-#ifndef _IOT_STARTER_ESP12F_IOT_STARTER_INCLUDE_API_H_
-#define _IOT_STARTER_ESP12F_IOT_STARTER_INCLUDE_API_H_
+// Copyright 2020, https://github.com/PatWie/iot-boilerplate
+#ifndef IOT_RESTFUL_API_ESP12F_IOT_RESTFUL_API_LIB_API_SRC_API_H_
+#define IOT_RESTFUL_API_ESP12F_IOT_RESTFUL_API_LIB_API_SRC_API_H_
 
 #include <memory>
 
@@ -45,4 +46,4 @@ std::unique_ptr<HTTPClient> PostSecureMessage(WiFiClient *client,
 
 };  // namespace Api
 
-#endif  // _IOT_STARTER_ESP12F_IOT_STARTER_INCLUDE_API_H_
+#endif  // IOT_RESTFUL_API_ESP12F_IOT_RESTFUL_API_LIB_API_SRC_API_H_
