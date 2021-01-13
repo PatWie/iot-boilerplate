@@ -11,19 +11,21 @@
 // Own header files.
 #include <Api.h>
 
+constexpr int operator"" _sec(long double ms) { return 1.0_sec * ms; }
+
 // This is tested on an ESP12-F board. And the LED is a different GPIO.
 const uint8_t ESP21F_LED = 2;
 
-void configuration_mode_callback(WiFiManager* wifi_manager) {
+void configuration_mode_callback(WiFiManager *wifi_manager) {
   Serial.println("Entered configuration mode");
   Serial.println(WiFi.softAPIP());
   Serial.print("Created configuration portal AP ");
   Serial.println(wifi_manager->getConfigPortalSSID());
 }
 
-void Ping(WiFiClient* wifi_client) { Api::Routes::Ping(wifi_client)->end(); }
+void Ping(WiFiClient *wifi_client) { Api::Routes::Ping(wifi_client)->end(); }
 
-void SendMessage(WiFiClient* wifi_client) {
+void SendMessage(WiFiClient *wifi_client) {
   // Create message to send.
   Api::Request::Message message;
   message.info = 12;
@@ -40,7 +42,7 @@ void SendMessage(WiFiClient* wifi_client) {
   http_client->end();
 }
 
-void SendSecureMessage(WiFiClient* wifi_client) {
+void SendSecureMessage(WiFiClient *wifi_client) {
   // Create message to send.
   Api::Request::Message message;
   message.info = 42;
@@ -60,12 +62,12 @@ void SendSecureMessage(WiFiClient* wifi_client) {
 void Blink(const int times) {
   for (int i = 0; i < times; i++) {
     digitalWrite(ESP21F_LED, LOW);
-    delay(200);
+    delay(0.2_sec);
     digitalWrite(ESP21F_LED, HIGH);
-    delay(200);
+    delay(0.2_sec);
   }
 
-  delay(1000);
+  delay(1.0_sec);
 }
 
 void setup() {
@@ -84,7 +86,7 @@ void setup() {
     Serial.println("failed to connect and hit timeout");
     // reset and try again, or maybe put it to deep sleep
     ESP.reset();
-    delay(1000);
+    delay(1.0_sec);
   }
 
   // TODO(patwie): Add logic for deep sleep and fail-safe re-connection. In
@@ -97,21 +99,21 @@ void loop() {
   WiFiClient wifi_client;
   if (!Api::IsConnected(&wifi_client)) {
     wifi_client.stop();
-    delay(5000);
+    delay(5.0_sec);
     return;
   }
 
   Ping(&wifi_client);
   Blink(2);
-  delay(2000);
+  delay(2.0_sec);
 
   SendMessage(&wifi_client);
   Blink(3);
-  delay(2000);
+  delay(2.0_sec);
 
   SendSecureMessage(&wifi_client);
   Blink(3);
-  delay(2000);
+  delay(2.0_sec);
 
   wifi_client.stop();
 }
