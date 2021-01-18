@@ -1,10 +1,9 @@
-
 #include <Arduino.h>
 #include <Fsm.h>
 
 constexpr int operator"" _sec(long double ms) { return 1000 * ms; }
 
-enum LEDS { RED = 5, YELLOW = 4, GREEN = 15 };
+enum GPIO { RED = 5, YELLOW = 4, GREEN = 15 };
 
 // A basic non-blocking version of a traffic light.
 // While this seems to be a toy example, the same mechanism can be used
@@ -13,6 +12,7 @@ enum LEDS { RED = 5, YELLOW = 4, GREEN = 15 };
 //
 // This will create a traffic light with the following states:
 // - red
+// - yellow
 // - red+yellow
 // - green
 //
@@ -26,21 +26,21 @@ enum LEDS { RED = 5, YELLOW = 4, GREEN = 15 };
 // A basic blocking(!) implementation would be
 //
 // void loop() {
-//   digitalWrite(LEDS::RED, HIGH);
+//   digitalWrite(GPIO::RED, HIGH);
 //   delay(3.0_sec);
-//   digitalWrite(LEDS::YELLOW, HIGH);
+//   digitalWrite(GPIO::YELLOW, HIGH);
 //   delay(0.5_sec);
-//   digitalWrite(LEDS::RED, LOW);
-//   digitalWrite(LEDS::YELLOW, LOW);
-//   digitalWrite(LEDS::GREEN, HIGH);
+//   digitalWrite(GPIO::RED, LOW);
+//   digitalWrite(GPIO::YELLOW, LOW);
+//   digitalWrite(GPIO::GREEN, HIGH);
 //   delay(2.0_sec);
-//   digitalWrite(LEDS::GREEN, LOW);
-//   digitalWrite(LEDS::YELLOW, HIGH);
+//   digitalWrite(GPIO::GREEN, LOW);
+//   digitalWrite(GPIO::YELLOW, HIGH);
 //   delay(0.5_sec);
-//   digitalWrite(LEDS::YELLOW, LOW);
+//   digitalWrite(GPIO::YELLOW, LOW);
 // }
 
-// Event that is emited, when a light has changed.
+// Event that is emitted, when a light has changed.
 struct LightChangedEvent : fsm::Event {
   // Specifies whe
   bool progress_to_red = false;
@@ -48,7 +48,7 @@ struct LightChangedEvent : fsm::Event {
   LightChangedEvent(bool progress_to_red) : progress_to_red(progress_to_red) {}
 };
 
-// This even is triggered from the loop.
+// This event is triggered from the loop.
 struct TickEvent : fsm::Event {};
 
 // Forward declaration of all available states.
@@ -60,16 +60,16 @@ struct GreenLightState;
 class TrafficLightState : public fsm::StateMachine<TrafficLightState> {
  protected:
   // The time when the event has been entered.
-  unsigned long start_time_stamp;
+  unsigned long entered_time_stamp;
 
-  // Are we longer in this state, than a given period?
-  bool ActiveLongerThan(unsigned long period) {
-    return ((millis() - start_time_stamp) > period);
+  // Are we longer in this state, than a given max_period?
+  bool ActiveLongerThan(unsigned long max_period) {
+    return ((millis() - entered_time_stamp) > max_period);
   }
 
  public:
   // Whenever we enter a state, we want the time-stamp to updated.
-  virtual void Enter() { start_time_stamp = millis(); }
+  virtual void Enter() { entered_time_stamp = millis(); }
   // Nothing special for the exit method. This is is filled out by the
   // concrete implementation.
   virtual void Exit() = 0;
@@ -81,22 +81,23 @@ class TrafficLightState : public fsm::StateMachine<TrafficLightState> {
 };
 
 class RedLightState : public TrafficLightState {
-  static constexpr unsigned long period = 3.0_sec;
+  static constexpr unsigned long max_period = 3.0_sec;
 
  public:
   RedLightState() {}
 
   void Enter() override {
-    start_time_stamp = millis();
-    digitalWrite(LEDS::RED, HIGH);
+    entered_time_stamp = millis();
+    digitalWrite(GPIO::RED, HIGH);
   }
 
-  // We do not turn the red light off.
+  // We do not turn the red light off as some states expect it to stay turned
+  // on.
   void Exit() override {}
 
   void On(const LightChangedEvent& event) override {}
   void On(const TickEvent& event) override {
-    if (ActiveLongerThan(period)) {
+    if (ActiveLongerThan(max_period)) {
       Emit(GotoEvent<YellowLightState>());
       Emit(LightChangedEvent(false));
     }
@@ -104,7 +105,7 @@ class RedLightState : public TrafficLightState {
 };
 
 class YellowLightState : public TrafficLightState {
-  static constexpr unsigned long period = 0.5_sec;
+  static constexpr unsigned long max_period = 0.5_sec;
   bool progress_to_red = false;
 
  public:
@@ -112,15 +113,15 @@ class YellowLightState : public TrafficLightState {
 
   // All we know, we need to turn on yellow.
   void Enter() override {
-    start_time_stamp = millis();
-    digitalWrite(LEDS::YELLOW, HIGH);
+    entered_time_stamp = millis();
+    digitalWrite(GPIO::YELLOW, HIGH);
   }
 
   // If the previous state communicated to turn red off, we will do so.
   void Exit() override {
-    digitalWrite(LEDS::YELLOW, LOW);
+    digitalWrite(GPIO::YELLOW, LOW);
     if (!progress_to_red) {
-      digitalWrite(LEDS::RED, LOW);
+      digitalWrite(GPIO::RED, LOW);
     }
   }
 
@@ -129,7 +130,7 @@ class YellowLightState : public TrafficLightState {
   }
 
   void On(const TickEvent& event) override {
-    if (ActiveLongerThan(period)) {
+    if (ActiveLongerThan(max_period)) {
       if (progress_to_red) {
         Emit(GotoEvent<RedLightState>());
         Emit(LightChangedEvent());
@@ -142,20 +143,20 @@ class YellowLightState : public TrafficLightState {
 };
 
 class GreenLightState : public TrafficLightState {
-  static constexpr unsigned long period = 2.0_sec;
+  static constexpr unsigned long max_period = 2.0_sec;
 
  public:
   GreenLightState() {}
 
   void Enter() override {
-    start_time_stamp = millis();
-    digitalWrite(LEDS::GREEN, HIGH);
+    entered_time_stamp = millis();
+    digitalWrite(GPIO::GREEN, HIGH);
   }
-  void Exit() override { digitalWrite(LEDS::GREEN, LOW); }
+  void Exit() override { digitalWrite(GPIO::GREEN, LOW); }
 
   void On(const LightChangedEvent& event) override {}
   void On(const TickEvent& event) override {
-    if (ActiveLongerThan(period)) {
+    if (ActiveLongerThan(max_period)) {
       Emit(GotoEvent<YellowLightState>());
       Emit(LightChangedEvent(true));
     }
@@ -165,9 +166,9 @@ class GreenLightState : public TrafficLightState {
 void setup() {
   Serial.begin(115200);
 
-  pinMode(LEDS::RED, OUTPUT);
-  pinMode(LEDS::YELLOW, OUTPUT);
-  pinMode(LEDS::GREEN, OUTPUT);
+  pinMode(GPIO::RED, OUTPUT);
+  pinMode(GPIO::YELLOW, OUTPUT);
+  pinMode(GPIO::GREEN, OUTPUT);
 
   TrafficLightState::Start<RedLightState>();
 }

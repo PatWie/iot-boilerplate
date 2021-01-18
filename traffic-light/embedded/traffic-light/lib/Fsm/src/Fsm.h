@@ -1,6 +1,6 @@
-// Copyright https://github.com/PatWie/CppNumericalSolvers, MIT license
-#ifndef LEDS_ESP8266_LEDS_LIB_FSM_SRC_FSM_H_
-#define LEDS_ESP8266_LEDS_LIB_FSM_SRC_FSM_H_
+// Copyright 2020, https://github.com/PatWie/iot-boilerplate
+#ifndef TRAFFIC_LIGHT_EMBEDDED_TRAFFIC_LIGHT_LIB_FSM_SRC_FSM_H_
+#define TRAFFIC_LIGHT_EMBEDDED_TRAFFIC_LIGHT_LIB_FSM_SRC_FSM_H_
 
 #include <type_traits>
 
@@ -8,11 +8,11 @@ namespace fsm {
 
 struct Event {};
 
-// Each state belongs to a specific machine. As this is heavily templated,
 // we have to prevent a machine transition to a state from a different machine.
 template <class StateType, class OtherStateType>
-struct is_same_machine : std::is_same<typename StateType::MachineType,
-                                      typename OtherStateType::MachineType> {};
+struct event_of_same_machine
+    : std::is_same<typename StateType::MachineType,
+                   typename OtherStateType::MachineType> {};
 
 // A description/instance of a state.
 template <class T>
@@ -34,7 +34,7 @@ class StateMachine {
   static StatePtr current_state_;
 
   // This is a special event tied to this machine and indicates a state change.
-  // We could have `Goto` implementatin public, but this would allow to mess
+  // We could have `Goto` implementation public, but this would allow to mess
   // around with the states.
   template <class TNextStateType>
   struct GotoEvent {
@@ -64,7 +64,7 @@ class StateMachine {
   // A helper method to transition to another state.
   template <class NextStateType>
   void Goto(void) {
-    static_assert(is_same_machine<StateType, NextStateType>::value,
+    static_assert(event_of_same_machine<StateType, NextStateType>::value,
                   "The state does not belong to the machine type.");
     current_state_->Exit();
     current_state_ = &StateInstance<NextStateType>::value;
@@ -72,11 +72,11 @@ class StateMachine {
   }
 };
 
-// The current state has to life somewhere. This is here.
+// The current state has to exist somewhere. That "somewhere" is here.
 template <class StateType>
 typename StateMachine<StateType>::StatePtr
     StateMachine<StateType>::current_state_;
 
 } /* namespace fsm */
 
-#endif  // LEDS_ESP8266_LEDS_LIB_FSM_SRC_FSM_H_
+#endif  // TRAFFIC_LIGHT_EMBEDDED_TRAFFIC_LIGHT_LIB_FSM_SRC_FSM_H_

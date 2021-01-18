@@ -12,22 +12,25 @@ steps:
   pull: never
   image: patwie/lint:latest
   commands:
-  - run-clang-format --clang-format-executable /usr/local/bin/clang-format11 -r iot-restful-api/esp12f --style Google
+  - run-clang-format --clang-format-executable /usr/local/bin/clang-format11 -r iot-restful-api/embedded --style Google
+  - run-clang-format --clang-format-executable /usr/local/bin/clang-format11 -r traffic-light/embedded --style Google
 
-- name: code-lint
-  pull: never
-  image: patwie/lint:latest
-  commands:
-  - 'cpplint --extensions=h,hpp,c,cpp,cc,cu,hh,ipp --filter="-build/include_order" --recursive iot-restful-api/esp12f > reviewdog -efm="%f:%l: %m" -name="cpplint" -reporter="local"'
+# - name: code-lint
+#   pull: never
+#   image: patwie/lint:latest
+#   commands:
+#   - 'cpplint --extensions=h,hpp,c,cpp,cc,cu,hh,ipp --filter="-build/include_order" --recursive iot-restful-api/embedded > reviewdog -efm="%f:%l: %m" -name="cpplint" -reporter="local"'
+#   - 'cpplint --extensions=h,hpp,c,cpp,cc,cu,hh,ipp --filter="-build/include_order" --recursive traffic-light/embedded > reviewdog -efm="%f:%l: %m" -name="cpplint" -reporter="local"'
 
 - name: build
   pull: never
   image: patwie/platformio:latest
   commands:
-  - 'cd iot-restful-api/esp12f/iot-restful-api && platformio run -e esp12e'
+  - 'cd /drone/src && cd iot-restful-api/embedded/iot-restful-api && platformio run -e esp12e'
+  - 'cd /drone/src && cd traffic-light/embedded/traffic-light && platformio run -e esp12e'
 
 ---
 kind: signature
-hmac: f00a78c7f92b285a9abaa08b467c9835ba4a79c2dd0459cec612a05af3fab870
+hmac: a44d9600f87e059d24eac7ba44691b7a8b308d716d790998ecff526500a1b377
 
 ...
