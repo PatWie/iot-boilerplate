@@ -3,27 +3,32 @@
 
 constexpr int operator"" _sec(long double ms) { return 1000 * ms; }
 
-enum GPIO { RED = 5, YELLOW = 4, GREEN = 15 };
+enum GPIO { RED = 5, YELLOW = 4, GREEN = 15, BUTTON = 13 };
 
-// A basic non-blocking version of a traffic light.
+// A basic non-blocking version of a traffic light using a fine state machine.
 // While this seems to be a toy example, the same mechanism can be used
-// to create a non-blocking FSM to handle deep-sleep, Wifi connection (with
-// attemps).
+// to create a non-blocking FSM to handle deep-sleep, WIFI connection (with
+// attempts, reset state).
 //
 // This will create a traffic light with the following states:
 // - red
 // - yellow
 // - red+yellow
 // - green
-//
-// and transit like:
-//
-// red -> red+yellow -> green -> yellow -> red
+// - maintenance (all lights on)
 //
 // This  toy example might sound trivial, but is has nice properties as
 // the yellow-state depends on the message of the previous state.
 //
-// A basic blocking(!) implementation would be
+// In normal mode the states transits via a tick event `TickEvent` after
+// a specific amount of time `max_period` like:
+//
+//    red -> red+yellow -> green -> yellow -> red
+//
+// A push button can trigger a mode change `SwitchModeEvent` ignoring the
+// `TickEvent`.
+//
+// A basic blocking implementation without a button would be
 //
 // void loop() {
 //   digitalWrite(GPIO::RED, HIGH);
@@ -41,29 +46,34 @@ enum GPIO { RED = 5, YELLOW = 4, GREEN = 15 };
 // }
 
 // Event that is emitted, when a light has changed.
-struct LightChangedEvent : fsm::Event {
-  // Specifies whe
+struct LightChangeEvent : fsm::Event {
+  // Specifies if this change has the direction to red.
+  // This is to avoid the additional state `yellow+red`.
   bool progress_to_red = false;
-  LightChangedEvent() {}
-  LightChangedEvent(bool progress_to_red) : progress_to_red(progress_to_red) {}
+  LightChangeEvent() {}
+  explicit LightChangeEvent(bool progress_to_red)
+      : progress_to_red(progress_to_red) {}
 };
 
 // This event is triggered from the loop.
 struct TickEvent : fsm::Event {};
 
+struct SwitchModeEvent : fsm::Event {};
+
 // Forward declaration of all available states.
 struct RedLightState;
 struct YellowLightState;
 struct GreenLightState;
+struct MaintainanceLightState;
 
 // A quite generic light state.
 class TrafficLightState : public fsm::StateMachine<TrafficLightState> {
  protected:
   // The time when the event has been entered.
-  unsigned long entered_time_stamp;
+  unsigned long entered_time_stamp;  // NOLINT
 
   // Are we longer in this state, than a given max_period?
-  bool ActiveLongerThan(unsigned long max_period) {
+  bool ActiveLongerThan(unsigned long max_period) {  // NOLINT
     return ((millis() - entered_time_stamp) > max_period);
   }
 
@@ -76,12 +86,14 @@ class TrafficLightState : public fsm::StateMachine<TrafficLightState> {
 
   // Whenever the loop "ticks".
   virtual void On(const TickEvent&) {}
-  // Whenever a light has changed.
-  virtual void On(const LightChangedEvent&) {}
+  // Whenever a light has changed in normal mode.
+  virtual void On(const LightChangeEvent&) {}
+
+  virtual void On(const SwitchModeEvent&) {}
 };
 
 class RedLightState : public TrafficLightState {
-  static constexpr unsigned long max_period = 3.0_sec;
+  static constexpr unsigned long max_period = 3.0_sec;  // NOLINT
 
  public:
   RedLightState() {}
@@ -95,17 +107,23 @@ class RedLightState : public TrafficLightState {
   // on.
   void Exit() override {}
 
-  void On(const LightChangedEvent& event) override {}
+  void On(const LightChangeEvent& event) override {}
+
   void On(const TickEvent& event) override {
     if (ActiveLongerThan(max_period)) {
       Emit(GotoEvent<YellowLightState>());
-      Emit(LightChangedEvent(false));
+      Emit(LightChangeEvent(false));
     }
   };
+
+  void On(const SwitchModeEvent&) override {
+    Emit(GotoEvent<MaintainanceLightState>());
+    Emit(LightChangeEvent());
+  }
 };
 
 class YellowLightState : public TrafficLightState {
-  static constexpr unsigned long max_period = 0.5_sec;
+  static constexpr unsigned long max_period = 0.5_sec;  // NOLINT
   bool progress_to_red = false;
 
  public:
@@ -125,7 +143,7 @@ class YellowLightState : public TrafficLightState {
     }
   }
 
-  void On(const LightChangedEvent& event) override {
+  void On(const LightChangeEvent& event) override {
     progress_to_red = event.progress_to_red;
   }
 
@@ -133,17 +151,22 @@ class YellowLightState : public TrafficLightState {
     if (ActiveLongerThan(max_period)) {
       if (progress_to_red) {
         Emit(GotoEvent<RedLightState>());
-        Emit(LightChangedEvent());
+        Emit(LightChangeEvent());
       } else {
         Emit(GotoEvent<GreenLightState>());
-        Emit(LightChangedEvent());
+        Emit(LightChangeEvent());
       }
     }
+  }
+
+  void On(const SwitchModeEvent&) override {
+    Emit(GotoEvent<MaintainanceLightState>());
+    Emit(LightChangeEvent());
   }
 };
 
 class GreenLightState : public TrafficLightState {
-  static constexpr unsigned long max_period = 2.0_sec;
+  static constexpr unsigned long max_period = 2.0_sec;  // NOLINT
 
  public:
   GreenLightState() {}
@@ -154,12 +177,45 @@ class GreenLightState : public TrafficLightState {
   }
   void Exit() override { digitalWrite(GPIO::GREEN, LOW); }
 
-  void On(const LightChangedEvent& event) override {}
+  void On(const LightChangeEvent& event) override {}
+
   void On(const TickEvent& event) override {
     if (ActiveLongerThan(max_period)) {
       Emit(GotoEvent<YellowLightState>());
-      Emit(LightChangedEvent(true));
+      Emit(LightChangeEvent(true));
     }
+  }
+
+  void On(const SwitchModeEvent&) override {
+    Emit(GotoEvent<MaintainanceLightState>());
+    Emit(LightChangeEvent());
+  }
+};
+
+class MaintainanceLightState : public TrafficLightState {
+  static constexpr unsigned long max_period = 2.0_sec;  // NOLINT
+
+ public:
+  MaintainanceLightState() {}
+
+  void Enter() override {
+    digitalWrite(GPIO::RED, HIGH);
+    digitalWrite(GPIO::YELLOW, HIGH);
+    digitalWrite(GPIO::GREEN, HIGH);
+  }
+  void Exit() override {
+    digitalWrite(GPIO::RED, LOW);
+    digitalWrite(GPIO::YELLOW, LOW);
+    digitalWrite(GPIO::GREEN, LOW);
+  }
+
+  void On(const LightChangeEvent& event) override {}
+
+  void On(const TickEvent& event) override {}
+
+  void On(const SwitchModeEvent&) override {
+    Emit(GotoEvent<RedLightState>());
+    Emit(LightChangeEvent());
   }
 };
 
@@ -169,7 +225,34 @@ void setup() {
   pinMode(GPIO::RED, OUTPUT);
   pinMode(GPIO::YELLOW, OUTPUT);
   pinMode(GPIO::GREEN, OUTPUT);
+  pinMode(GPIO::BUTTON, INPUT);
 
   TrafficLightState::Start<RedLightState>();
 }
-void loop() { TrafficLightState::Emit(TickEvent()); }
+
+class Button {
+ public:
+  explicit Button(int pin)
+      : old_state_(LOW), new_state_(old_state_), pin_(pin) {}
+
+  bool Pressed() {
+    old_state_ = new_state_;
+    new_state_ = digitalRead(GPIO::BUTTON);
+
+    return (old_state_ != new_state_) && (new_state_ == LOW);
+  }
+
+ private:
+  int old_state_ = LOW;
+  int new_state_ = LOW;
+  int pin_;
+};
+
+Button button(GPIO::BUTTON);
+
+void loop() {
+  if (button.Pressed()) {
+    TrafficLightState::Emit(SwitchModeEvent());
+  }
+  TrafficLightState::Emit(TickEvent());
+}
