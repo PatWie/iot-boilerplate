@@ -15,12 +15,12 @@ steps:
   - run-clang-format --clang-format-executable /usr/local/bin/clang-format11 -r iot-restful-api/embedded --style Google
   - run-clang-format --clang-format-executable /usr/local/bin/clang-format11 -r traffic-light/embedded --style Google
 
-# - name: code-lint
-#   pull: never
-#   image: patwie/lint:latest
-#   commands:
-#   - 'cpplint --extensions=h,hpp,c,cpp,cc,cu,hh,ipp --filter="-build/include_order" --recursive iot-restful-api/embedded > reviewdog -efm="%f:%l: %m" -name="cpplint" -reporter="local"'
-#   - 'cpplint --extensions=h,hpp,c,cpp,cc,cu,hh,ipp --filter="-build/include_order" --recursive traffic-light/embedded > reviewdog -efm="%f:%l: %m" -name="cpplint" -reporter="local"'
+- name: code-lint
+  pull: never
+  image: patwie/lint:latest
+  commands:
+  - 'cpplint --extensions=h,hpp,c,cpp,cc,cu,hh,ipp --filter="-build/include_order,-runtime/int,-legal/copyright" --recursive iot-restful-api/embedded > reviewdog -efm="%f:%l: %m" -name="cpplint" -reporter="local"'
+  - 'cpplint --extensions=h,hpp,c,cpp,cc,cu,hh,ipp --filter="-build/include_order,-runtime/int,-legal/copyright" --recursive traffic-light/embedded > reviewdog -efm="%f:%l: %m" -name="cpplint" -reporter="local"'
 
 - name: build
   pull: never
@@ -31,6 +31,6 @@ steps:
 
 ---
 kind: signature
-hmac: a44d9600f87e059d24eac7ba44691b7a8b308d716d790998ecff526500a1b377
+hmac: 3e236af52a268a1b49d3b5389eddfb295d13302dc455a2d947f4cbde1b2568ee
 
 ...

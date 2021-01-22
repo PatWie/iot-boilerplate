@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <Button.h>
 #include <Fsm.h>
 
 constexpr int operator"" _sec(long double ms) { return 1000 * ms; }
@@ -70,10 +71,10 @@ struct MaintainanceLightState;
 class TrafficLightState : public fsm::StateMachine<TrafficLightState> {
  protected:
   // The time when the event has been entered.
-  unsigned long entered_time_stamp;  // NOLINT
+  unsigned long entered_time_stamp;
 
   // Are we longer in this state, than a given max_period?
-  bool ActiveLongerThan(unsigned long max_period) {  // NOLINT
+  bool ActiveLongerThan(unsigned long max_period) {
     return ((millis() - entered_time_stamp) > max_period);
   }
 
@@ -88,12 +89,12 @@ class TrafficLightState : public fsm::StateMachine<TrafficLightState> {
   virtual void On(const TickEvent&) {}
   // Whenever a light has changed in normal mode.
   virtual void On(const LightChangeEvent&) {}
-
+  // Whenever the mode between "normal" and "maintenance" should be switched.
   virtual void On(const SwitchModeEvent&) {}
 };
 
 class RedLightState : public TrafficLightState {
-  static constexpr unsigned long max_period = 3.0_sec;  // NOLINT
+  static constexpr unsigned long max_period = 3.0_sec;
 
  public:
   RedLightState() {}
@@ -123,7 +124,7 @@ class RedLightState : public TrafficLightState {
 };
 
 class YellowLightState : public TrafficLightState {
-  static constexpr unsigned long max_period = 0.5_sec;  // NOLINT
+  static constexpr unsigned long max_period = 0.5_sec;
   bool progress_to_red = false;
 
  public:
@@ -166,7 +167,7 @@ class YellowLightState : public TrafficLightState {
 };
 
 class GreenLightState : public TrafficLightState {
-  static constexpr unsigned long max_period = 2.0_sec;  // NOLINT
+  static constexpr unsigned long max_period = 2.0_sec;
 
  public:
   GreenLightState() {}
@@ -193,7 +194,7 @@ class GreenLightState : public TrafficLightState {
 };
 
 class MaintainanceLightState : public TrafficLightState {
-  static constexpr unsigned long max_period = 2.0_sec;  // NOLINT
+  static constexpr unsigned long max_period = 2.0_sec;
 
  public:
   MaintainanceLightState() {}
@@ -230,28 +231,10 @@ void setup() {
   TrafficLightState::Start<RedLightState>();
 }
 
-class Button {
- public:
-  explicit Button(int pin)
-      : old_state_(LOW), new_state_(old_state_), pin_(pin) {}
-
-  bool Pressed() {
-    old_state_ = new_state_;
-    new_state_ = digitalRead(GPIO::BUTTON);
-
-    return (old_state_ != new_state_) && (new_state_ == LOW);
-  }
-
- private:
-  int old_state_ = LOW;
-  int new_state_ = LOW;
-  int pin_;
-};
-
-Button button(GPIO::BUTTON);
+PushButton push_button(GPIO::BUTTON);
 
 void loop() {
-  if (button.Pressed()) {
+  if (push_button.Released()) {
     TrafficLightState::Emit(SwitchModeEvent());
   }
   TrafficLightState::Emit(TickEvent());
